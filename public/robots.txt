@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+# Unofficial concept project. The live store is https://gullylabs.com

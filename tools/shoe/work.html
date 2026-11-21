@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>shoe explode workbench</title>
+<style>
+  html, body { margin: 0; background: #111; color: #ddd; font: 12px/1.4 monospace; }
+  #c { display: block; margin: 8px auto; box-shadow: 0 0 0 1px #333; }
+  #bar { padding: 6px 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button { background: #222; color: #ddd; border: 1px solid #555; padding: 4px 10px; cursor: pointer; }
+  button:hover { background: #333; }
+  #status { margin-left: auto; color: #8f8; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button data-act="grid">grid</button>
+  <button data-act="masks">masks</button>
+  <button data-act="layers">layers</button>
+  <button data-act="frame0">frame 0</button>
+  <button data-act="frameExplode">frame explode</button>
+  <button data-act="frameMid">frame mid</button>
+  <span id="status">loading…</span>
+</div>
+<canvas id="c" width="1000" height="1000"></canvas>
+<script>
+'use strict'
+const W = 2000, H = 2000
+const STATUS = (s) => { document.getElementById('status').textContent = s }
+
+// ---------------------------------------------------------------- load
+// NB: <img>.decode() hangs in this environment; fetch + createImageBitmap is reliable.
+let img = null
+const ready = (async () => {
+  const blob = await (await fetch('sneaker-ref.jpg')).blob()
+  img = await createImageBitmap(blob)
+  STATUS(`image ${img.width}x${img.height}`)
+})()
+
+const newCanvas = (w = W, h = H) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c }
+
+// ---------------------------------------------------------------- masks
+// Each part: { key, paths: [svg-d...], keyColor, keyTol, subtract: [otherKeys...] }
+// kind 'path'  -> filled paths
+// kind 'key'   -> filled paths AND color-distance <= tol to keyColor
+const PARTS = [
+  { key: 'sole', kind: 'path', subtract: ['chain'], d: [] },
+  { key: 'lining', kind: 'path', subtract: ['laces'], d: [] },
+  { key: 'upper', kind: 'path', subtract: ['laces', 'eyelets', 'chain', 'lining'], d: [] },
+  { key: 'laces', kind: 'path', subtract: [], d: [] },
+  { key: 'eyelets', kind: 'key', subtract: [], keyColor: [176, 141, 66], keyTol: 58, d: [] },
+  { key: 'chain', kind: 'key', subtract: [], keyColor: [172, 134, 62], keyTol: 60, d: [] },
+]
+
+// rasterize a path-d onto a full-size mask canvas (white on transparent)
+function pathMask(dList) {
+  const c = newCanvas(), x = c.getContext('2d')
+  x.fillStyle = '#fff'
+  for (const d of dList) x.fill(new Path2D(d))
+  return c
+}
+
+// color-key inside path bounds
+function keyMask(dList, color, tol) {
+  const bounds = pathMask(dList)
+  const bx = bounds.getContext('2d')
+  const bp = bx.getImageData(0, 0, W, H)
+  const out = newCanvas(), ox = out.getContext('2d')
+  const op = ox.createImageData(W, H)
+  const [kr, kg, kb] = color, t2 = tol * tol
+  for (let i = 0; i < W * H; i++) {
+    if (bp.data[i * 4 + 3] === 0) continue
+    const dr = bp.data[i * 4] - kr, dg = bp.data[i * 4 + 1] - kg, db = bp.data[i * 4 + 2] - kb
+    if (dr * dr + dg * dg + db * db <= t2) op.data[i * 4 + 3] = 255
+    op.data[i * 4] = op.data[i * 4 + 1] = op.data[i * 4 + 2] = 255
+  }
+  ox.putImageData(op, 0, 0)
+  return out
+}
+
+const maskCache = {}
+function partMask(part) {
+  if (maskCache[part.key]) return maskCache[part.key]
+  let m = part.kind === 'key' ? keyMask(part.d, part.keyColor, part.keyTol) : pathMask(part.d)
+  for (const sub of part.subtract) {
+    const other = PARTS.find(p => p.key === sub)
+    const sm = partMask(other)
+    const x = m.getContext('2d')
+    x.globalCompositeOperation = 'destination-out'
+    x.drawImage(sm, 0, 0)
+    x.globalCompositeOperation = 'source-over'
+  }
+  maskCache[part.key] = m
+  return m
+}
+
+// ---------------------------------------------------------------- inpaint
+// iterative neighbour diffusion inside regionMask (a full canvas with alpha=255 in region)
+function diffuseFill(target, regionMask, passes = 260) {
+  const tx = target.getContext('2d')
+  const tp = tx.getImageData(0, 0, W, H)
+  const rp = regionMask.getContext('2d').getImageData(0, 0, W, H)
+  const src = new Uint8ClampedArray(tp.data)
+  const inR = (i) => rp.data[i * 4 + 3] > 0
+  const at = (d, x, y, i) => {
+    if (x < 0 || y < 0 || x >= W || y >= H) return null
+    const j = y * W + x
+    if (inR(j) && !filled[j]) return null // not yet available
+    return [d[j * 4], d[j * 4 + 1], d[j * 4 + 2]]
+  }
+  const filled = new Uint8Array(W * H)
+  // mark boundary: region pixels with a non-region neighbour = seeded from src
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x
+    if (!inR(i)) continue
+    const n = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+    let boundary = false
+    for (const [nx, ny] of n) {
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H || !inR(ny * W + nx)) { boundary = true; break }
+    }
+    if (boundary) filled[i] = 1
+  }
+  for (let p = 0; p < passes; p++) {
+    let changed = 0
+    const cur = tp.data
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x
+      if (!inR(i) || filled[i]) continue
+      let r = 0, g = 0, b = 0, n = 0
+      const nb = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+      for (const [nx, ny] of nb) {
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue
+        const j = ny * W + nx
+        const usable = !inR(j) || filled[j]
+        if (!usable) continue
+        r += src[j * 4]; g += src[j * 4 + 1]; b += src[j * 4 + 2]; n++
+      }
+      if (n) {
+        cur[i * 4] = r / n; cur[i * 4 + 1] = g / n; cur[i * 4 + 2] = b / n
+        filled[i] = 1; changed++
+      }
+    }
+    if (!changed) break
+  }
+  tx.putImageData(tp, 0, 0)
+}
+
+function darkFill(target, regionMask, color = [34, 24, 18]) {
+  const x = target.getContext('2d')
+  x.save()
+  x.drawImage(regionMask, 0, 0)
+  x.globalCompositeOperation = 'source-in'
+  x.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`
+  x.fillRect(0, 0, W, H)
+  x.restore()
+}
+
+// ---------------------------------------------------------------- layers
+// inpaint recipes per layer: regions (built from other parts' masks) + fill style
+function regionOf(dList) { return pathMask(dList) }
+
+function buildLayer(part) {
+  const c = newCanvas()
+  const x = c.getContext('2d')
+  x.drawImage(img, 0, 0)
+
+  // per-layer inpaints
+  if (part.key === 'upper') {
+    // under chain + laces + rings: diffuse from surrounding canvas/panel
+    const r = newCanvas(), rx = r.getContext('2d')
+    rx.drawImage(partMask(PARTS.find(p => p.key === 'chain')), 0, 0)
+    rx.drawImage(partMask(PARTS.find(p => p.key === 'laces')), 0, 0)
+    rx.drawImage(partMask(PARTS.find(p => p.key === 'eyelets')), 0, 0)
+    // restrict to upper silhouette
+    rx.globalCompositeOperation = 'destination-in'
+    rx.drawImage(pathMask(part.d), 0, 0)
+    diffuseFill(c, r)
+    // throat / collar (tongue + lining zone): dark interior
+    const t = newCanvas(), tx = t.getContext('2d')
+    tx.drawImage(pathMask(PARTS.find(p => p.key === 'lining').d), 0, 0)
+    tx.globalCompositeOperation = 'destination-in'
+    tx.drawImage(pathMask(part.d), 0, 0)
+    darkFill(c, t)
+  }
+  if (part.key === 'lining') {
+    const r = newCanvas(), rx = r.getContext('2d')
+    rx.drawImage(partMask(PARTS.find(p => p.key === 'laces')), 0, 0)
+    rx.globalCompositeOperation = 'destination-in'
+    rx.drawImage(pathMask(part.d), 0, 0)
+    diffuseFill(c, r)
+  }
+  if (part.key === 'sole') {
+    const r = newCanvas(), rx = r.getContext('2d')
+    rx.drawImage(partMask(PARTS.find(p => p.key === 'chain')), 0, 0)
+    rx.globalCompositeOperation = 'destination-in'
+    rx.drawImage(pathMask(part.d), 0, 0)
+    diffuseFill(c, r)
+  }
+  if (part.key === 'laces') {
+    const r = newCanvas(), rx = r.getContext('2d')
+    rx.drawImage(partMask(PARTS.find(p => p.key === 'eyelets')), 0, 0)
+    rx.globalCompositeOperation = 'destination-in'
+    rx.drawImage(pathMask(part.d), 0, 0)
+    diffuseFill(c, r)
+  }
+
+  // clip to own mask
+  x.globalCompositeOperation = 'destination-in'
+  x.drawImage(partMask(part), 0, 0)
+  return c
+}
+
+const layerCache = {}
+function layer(part) {
+  if (!layerCache[part.key]) layerCache[part.key] = buildLayer(part)
+  return layerCache[part.key]
+}
+
+// ---------------------------------------------------------------- previews
+function download(canvas, name) {
+  canvas.toBlob((b) => {
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(b)
+    a.download = name
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000)
+  }, 'image/png')
+}
+
+function drawGrid(x, step = 100) {
+  x.save()
+  x.strokeStyle = 'rgba(0,180,255,0.35)'
+  x.fillStyle = 'rgba(0,180,255,0.8)'
+  x.font = '18px monospace'
+  x.lineWidth = 1
+  for (let i = 0; i <= W; i += step) {
+    x.beginPath(); x.moveTo(i, 0); x.lineTo(i, H); x.stroke()
+    x.beginPath(); x.moveTo(0, i); x.lineTo(W, i); x.stroke()
+    if (i % 200 === 0) {
+      x.fillText(i, i + 4, 24)
+      x.fillText(i, 4, i + 22)
+    }
+  }
+  x.restore()
+}
+
+function previewGrid() {
+  const c = newCanvas(), x = c.getContext('2d')
+  x.drawImage(img, 0, 0)
+  drawGrid(x)
+  download(c, 'pv-grid.png')
+}
+
+const MASK_COLORS = ['#ff3d6e', '#3dff8f', '#3d9bff', '#ffd23d', '#c23dff', '#3dfff2']
+function previewMasks() {
+  const c = newCanvas(), x = c.getContext('2d')
+  x.drawImage(img, 0, 0)
+  x.globalAlpha = 0.45
+  PARTS.forEach((p, i) => {
+    x.save()
+    x.globalCompositeOperation = 'source-atop'
+    x.drawImage(partMask(p), 0, 0)
+    x.fillStyle = MASK_COLORS[i]
+    x.globalCompositeOperation = 'source-in'
+    x.fillRect(0, 0, W, H)
+    x.restore()
+  })
+  x.globalAlpha = 1
+  // outlines: stroke mask edge by drawing mask offset-difference? cheap: draw masks at 1px scale tricks are messy — skip
+  PARTS.forEach((p, i) => {
+    const bb = maskBounds(p)
+    if (!bb) return
+    x.fillStyle = MASK_COLORS[i]
+    x.font = 'bold 26px monospace'
+    x.fillText(p.key, bb.x + 6, bb.y + 30)
+    x.strokeStyle = MASK_COLORS[i]
+    x.lineWidth = 3
+    x.strokeRect(bb.x, bb.y, bb.w, bb.h)
+  })
+  download(c, 'pv-masks.png')
+}
+
+function maskBounds(part) {
+  const m = partMask(part).getContext('2d').getImageData(0, 0, W, H)
+  let x0 = W, y0 = H, x1 = 0, y1 = 0, any = false
+  for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+    if (m.data[(y * W + x) * 4 + 3] > 0) {
+      any = true
+      if (x < x0) x0 = x; if (x > x1) x1 = x
+      if (y < y0) y0 = y; if (y > y1) y1 = y
+    }
+  }
+  return any ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0, px: countMask(part) } : null
+}
+
+function countMask(part) {
+  const m = partMask(part).getContext('2d').getImageData(0, 0, W, H)
+  let n = 0
+  for (let i = 3; i < m.data.length; i += 4) if (m.data[i] > 0) n++
+  return n
+}
+
+function previewLayers() {
+  const cols = 3, rows = 2, cw = 640, ch = 400
+  const c = newCanvas(cols * cw, rows * ch), x = c.getContext('2d')
+  x.fillStyle = '#efece5'
+  x.fillRect(0, 0, c.width, c.height)
+  PARTS.forEach((p, i) => {
+    const ox = (i % cols) * cw, oy = Math.floor(i / cols) * ch
+    const l = layer(p)
+    // fit 2000px layer into cell
+    const s = Math.min((cw - 20) / W, (ch - 50) / H)
+    x.drawImage(l, ox + 10, oy + 40, W * s, H * s)
+    x.fillStyle = '#111'
+    x.font = 'bold 22px monospace'
+    const bb = maskBounds(p)
+    x.fillText(`${p.key}${bb ? ' ' + bb.w + 'x' + bb.h : ''}`, ox + 12, oy + 28)
+  })
+  download(c, 'pv-layers.png')
+}
+
+// ---------------------------------------------------------------- numeric helpers
+window.__api = {
+  ready,
+  sample: (px, py) => {
+    const c = newCanvas(), x2 = c.getContext('2d')
+    x2.drawImage(img, 0, 0)
+    const d = x2.getImageData(px, py, 1, 1).data
+    return [d[0], d[1], d[2]]
+  },
+  stats: (key) => {
+    const p = PARTS.find(q => q.key === key)
+    if (!p) return null
+    return maskBounds(p)
+  },
+  reload: () => { for (const k in maskCache) delete maskCache[k]; for (const k in layerCache) delete layerCache[k] },
+  previewGrid, previewMasks, previewLayers,
+  // brass blob detector: find color-keyed connected components in rect
+  // returns [{cx, cy, w, h, n}] in image coords
+  brassBlobs: (x0, y0, x1, y1, kr = 180, kg = 145, kb = 80, tol = 62, minN = 150) => {
+    const rw = x1 - x0, rh = y1 - y0
+    const c = newCanvas(rw, rh), x = c.getContext('2d')
+    x.drawImage(img, x0, y0, rw, rh, 0, 0, rw, rh)
+    const d = x.getImageData(0, 0, rw, rh).data
+    const m = new Uint8Array(rw * rh)
+    const t2 = tol * tol
+    for (let i = 0; i < rw * rh; i++) {
+      const dr = d[i * 4] - kr, dg = d[i * 4 + 1] - kg, db = d[i * 4 + 2] - kb
+      if (dr * dr + dg * dg + db * db <= t2) m[i] = 1
+    }
+    // dilate 6px via box passes to merge ring pixels into one blob
+    const dil = (src, r) => {
+      let a = src, b = new Uint8Array(src.length)
+      for (let p = 0; p < r; p++) {
+        for (let y = 0; y < rh; y++) for (let xx = 0; xx < rw; xx++) {
+          let v = 0
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const ny = y + dy, nx = xx + dx
+            if (ny >= 0 && ny < rh && nx >= 0 && nx < rw && a[ny * rw + nx]) { v = 1; break }
+          }
+          b[y * rw + xx] = v
+        }
+        ;[a, b] = [b, a]
+      }
+      return a
+    }
+    const dm = dil(m, 6)
+    const lab = new Int32Array(rw * rh).fill(-1)
+    const blobs = []
+    const stack = []
+    for (let i = 0; i < rw * rh; i++) {
+      if (!dm[i] || lab[i] >= 0) continue
+      const id = blobs.length
+      lab[i] = id; stack.push(i)
+      let sx = 0, sy = 0, n = 0, mx0 = 1e9, my0 = 1e9, mx1 = -1, my1 = -1
+      while (stack.length) {
+        const j = stack.pop()
+        const jx = j % rw, jy = (j / rw) | 0
+        sx += jx; sy += jy; n++
+        if (jx < mx0) mx0 = jx; if (jx > mx1) mx1 = jx
+        if (jy < my0) my0 = jy; if (jy > my1) my1 = jy
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const nx = jx + dx, ny = jy + dy
+          if (nx < 0 || ny < 0 || nx >= rw || ny >= rh) continue
+          const k = ny * rw + nx
+          if (dm[k] && lab[k] < 0) { lab[k] = id; stack.push(k) }
+        }
+      }
+      if (n >= minN) blobs.push({ cx: x0 + Math.round(sx / n), cy: y0 + Math.round(sy / n), w: mx1 - mx0 + 1, h: my1 - my0 + 1, n })
+      else blobs.pop()
+    }
+    return blobs
+  },
+  // average color of brass-keyed pixels in rect (for tuning key color)
+  brassMean: (x0, y0, x1, y1, tol = 62) => {
+    const rw = x1 - x0, rh = y1 - y0
+    const c = newCanvas(rw, rh), x = c.getContext('2d')
+    x.drawImage(img, x0, y0, rw, rh, 0, 0, rw, rh)
+    const d = x.getImageData(0, 0, rw, rh).data
+    let r = 0, g = 0, b = 0, n = 0
+    for (let i = 0; i < rw * rh; i++) {
+      const R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2]
+      if (R > 130 && R > B + 45 && G > B + 25 && G < R) { r += R; g += G; b += B; n++ }
+    }
+    return n ? { mean: [Math.round(r / n), Math.round(g / n), Math.round(b / n)], n } : null
+  },
+  // zoomed crop with fine grid: crop(x, y, w, h, scale, step)
+  crop: (cx, cy, cw, ch, scale = 2, step = 50) => {
+    const c = newCanvas(Math.round(cw * scale), Math.round(ch * scale))
+    const x = c.getContext('2d')
+    x.imageSmoothingEnabled = false
+    x.drawImage(img, cx, cy, cw, ch, 0, 0, c.width, c.height)
+    x.save()
+    x.scale(scale, scale)
+    x.translate(-cx, -cy)
+    x.strokeStyle = 'rgba(0,180,255,0.4)'
+    x.fillStyle = 'rgba(0,180,255,0.9)'
+    x.font = `${14 / scale * 1}px monospace`
+    x.font = '14px monospace'
+    x.lineWidth = 1 / scale
+    for (let i = Math.floor(cx / step) * step; i <= cx + cw; i += step) {
+      x.beginPath(); x.moveTo(i, cy); x.lineTo(i, cy + ch); x.stroke()
+      if (i % (step * 2) === 0) x.fillText(i, i + 3, cy + 18)
+    }
+    for (let i = Math.floor(cy / step) * step; i <= cy + ch; i += step) {
+      x.beginPath(); x.moveTo(cx, i); x.lineTo(cx + cw, i); x.stroke()
+      if (i % (step * 2) === 0) x.fillText(i, cx + 3, i + 16)
+    }
+    x.restore()
+    download(c, 'pv-crop.png')
+  },
+}
+
+// ---------------------------------------------------------------- buttons
+document.getElementById('bar').addEventListener('click', (e) => {
+  const act = e.target.dataset && e.target.dataset.act
+  if (!act) return
+  ready.then(() => {
+    if (act === 'grid') previewGrid()
+    if (act === 'masks') previewMasks()
+    if (act === 'layers') previewLayers()
+    STATUS(act + ' done')
+  })
+})
+
+ready.then(() => STATUS('ready')).catch((e) => STATUS('ERR ' + e.message))
+</script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --cobalt: #003bd0;
+    --ink: #0b0b0b;
+    --paper: #efece5;
+    --ease-precision: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
+    /* No overflow-x rule on html/body: any overflow value on the root makes
+       it a scroll container and silently kills every `position: sticky`
+       scene. Horizontal overflow is clipped at the individual scene stages. */
+    background-color: #ffffff;
+  }
+
+  body {
+    margin: 0;
+    background-color: #ffffff;
+    color: var(--ink);
+    font-family: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-synthesis-weight: none;
+  }
+
+  ::selection {
+    background-color: var(--cobalt);
+    color: #ffffff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--cobalt);
+    outline-offset: 3px;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  figure,
+  blockquote {
+    margin: 0;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@layer components {
+  .spec {
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1.4;
+  }
+
+  @media (min-width: 768px) {
+    .spec {
+      font-size: 0.75rem;
+    }
+  }
+
+  .shell {
+    width: 100%;
+    margin-inline: auto;
+    max-width: 1680px;
+    padding-inline: clamp(1.125rem, 4vw, 4.5rem);
+  }
+
+  .display {
+    font-family: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: -0.045em;
+    line-height: 0.86;
+  }
+
+  .hairline {
+    border-color: color-mix(in srgb, #0b0b0b 14%, transparent);
+  }
+
+  .link-underline {
+    position: relative;
+    display: inline-block;
+    padding-block: 0.4rem;
+    margin-block: -0.4rem;
+  }
+
+  .link-underline::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: calc(0.4rem - 0.15em);
+    height: 1px;
+    width: 100%;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 0.5s var(--ease-precision);
+  }
+
+  .link-underline:hover::after,
+  .link-underline:focus-visible::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+
+  .grain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    z-index: 0;
+  }
+
+  /* Teardown layer focus: active layer reads, the rest recede. */
+  .layer-callout[data-active='false'] {
+    opacity: 0.5;
+  }
+
+  .layer-callout[data-active='true'] {
+    opacity: 1;
+  }
+
+  /* Reveal-on-scroll. Safe by default: content is visible unless JS opts in. */
+  html.motion-ready .reveal {
+    opacity: 0;
+    transform: translateY(26px);
+    transition: opacity 0.85s var(--ease-precision), transform 0.85s var(--ease-precision);
+    will-change: opacity, transform;
+  }
+
+  html.motion-ready .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  html.motion-ready .reveal-delay {
+    transition-delay: 0.14s;
+  }
+
+  .edge-ticks::before,
+  .edge-ticks::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: rgba(11, 11, 11, 0.35);
+    pointer-events: none;
+  }
+
+  .edge-ticks::before {
+    top: 0;
+    left: 0;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+
+  .edge-ticks::after {
+    bottom: 0;
+    right: 0;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+  }
+
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 38s linear infinite;
+  }
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html.motion-ready .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .marquee-track {
+    animation: none !important;
+  }
+}
