@@ -1,0 +1,45 @@
+Re-optimizing dependencies because vite config has changed
+
+  [32m[1mVITE[22m v5.4.11[39m  [2mready in [0m[1m885[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m2:13:17 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m2:13:37 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m2:13:47 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Teardown.jsx, /src/index.css[22m
+[2m2:13:47 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Fan.jsx, /src/index.css[22m
+[2m2:13:47 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Hero.jsx, /src/index.css[22m
+[2m2:13:47 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Rotator.jsx, /src/index.css[22m
+[2m2:13:47 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Teardown.jsx, /src/index.css[22m
+[2m2:14:17 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Annotation.jsx, /src/index.css[22m
+[2m2:14:26 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Growth.jsx, /src/index.css[22m
+[2m2:14:26 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Wall.jsx, /src/index.css[22m
+[2m2:14:36 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Teardown.jsx, /src/index.css[22m
+[2m2:14:46 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Teardown.jsx, /src/index.css[22m
+[2m2:15:34 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Annotation.jsx, /src/index.css[22m
+[2m2:15:45 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Annotation.jsx, /src/index.css[22m
+[2m2:16:38 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m2:16:38 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Rotator.jsx, /src/index.css[22m
+[2m2:16:38 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Annotation.jsx, /src/index.css[22m
+[2m2:29:51 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/sections/Rotator.jsx[22m
+[2m2:29:51 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Journey.jsx, /src/index.css[22m
+[2m2:30:08 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Journey.jsx, /src/index.css[22m
+[2m2:37:12 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Fan.jsx, /src/index.css[22m
+[2m2:55:52 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Teardown.jsx, /src/index.css[22m
+[2m2:56:06 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Teardown.jsx, /src/index.css[22m
+[2m2:56:09 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Teardown.jsx, /src/index.css[22m
+[2m2:56:23 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Teardown.jsx, /src/index.css[22m
+[2m2:56:36 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Hero.jsx, /src/index.css[22m
+[2m2:56:44 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Hero.jsx, /src/index.css[22m
+[2m2:56:53 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Loader.jsx, /src/index.css[22m
+[2m2:56:58 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Loader.jsx, /src/index.css[22m
+[2m2:57:13 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Growth.jsx, /src/index.css[22m
+[2m2:57:26 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Fan.jsx, /src/index.css[22m
+[2m2:57:30 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Wall.jsx, /src/index.css[22m
+[2m2:57:46 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Statement.jsx, /src/index.css[22m
+[2m2:58:20 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Rotator.jsx, /src/index.css[22m
+[2m2:58:33 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/sections/Annotation.jsx, /src/index.css[22m
+[2m2:50:47 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtools/shoe/work.html[22m
+[2m2:56:36 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtools/shoe/work.html[22m
+[2m3:15:05 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtools/shoe/work.html[22m
+[2m3:27:58 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtools/shoe/work.html[22m
